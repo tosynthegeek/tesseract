@@ -1,0 +1,23 @@
+[package]
+name = "tesseract-integration-tests"
+version = "0.1.0"
+edition = "2021"
+description = "Integration tests for the tesseract relayer"
+authors = ["Polytope Labs <hello@polytope.technology>"]
+
+[dependencies]
+anyhow = "1.0.70"
+tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
+#subxt = { version = "0.28.0", features = [] }
+subxt = { git = "https://github.com/polytope-labs/subxt", branch = "master" }
+codec = { package = "parity-scale-codec", version = "3.2.2", default-features = false, features = ["derive"] }
+env_logger = "0.10.0"
+
+ismp = { git = "ssh://git@github.com/polytope-labs/ismp-rs.git", branch = "main" }
+ismp-parachain = { git = "ssh://git@github.com/polytope-labs/substrate-ismp.git", branch = "main" }
+
+sp-io = "22.0.0"
+
+tesseract-parachain = { path = "../parachain" }
+tesseract-consensus = { path = "../consensus" }
+tesseract-primitives = { path = "../primitives" }
