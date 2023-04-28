@@ -7,6 +7,7 @@ use ismp::{
     messaging::CreateConsensusClient,
 };
 use ismp_parachain::consensus::PARACHAIN_CONSENSUS_ID;
+use std::{future::Future, time::Duration};
 use subxt::{
     config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
     ext::sp_core::keccak_256,
@@ -39,15 +40,14 @@ impl subxt::Config for Hyperbridge {
     type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }
 
-#[tokio::test]
-async fn test_parachain_parachain_consensus_relay() -> Result<(), anyhow::Error> {
-    env_logger::init();
-
+async fn setup_clients(
+) -> Result<(ParachainClient<Hyperbridge>, ParachainClient<Hyperbridge>), anyhow::Error> {
     let config_a = ParachainConfig {
         state_machine: StateMachine::Kusama(2000),
         relay_chain: "ws://localhost:9944".to_string(),
         parachain: "ws://localhost:9988".to_string(),
         signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
+        latest_state_machine_height: None,
     };
     let chain_a = ParachainClient::<Hyperbridge>::new(config_a).await?;
 
@@ -56,6 +56,7 @@ async fn test_parachain_parachain_consensus_relay() -> Result<(), anyhow::Error>
         relay_chain: "ws://localhost:9944".to_string(),
         parachain: "ws://localhost:9188".to_string(),
         signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
+        latest_state_machine_height: None,
     };
     let chain_b = ParachainClient::<Hyperbridge>::new(config_b).await?;
 
@@ -101,7 +102,92 @@ async fn test_parachain_parachain_consensus_relay() -> Result<(), anyhow::Error>
         })
         .await?;
 
-    tesseract_consensus::relay(chain_a, chain_b).await?;
+    Ok((chain_a, chain_b))
+}
 
+pub fn setup_logging() {
+    use log::LevelFilter;
+    env_logger::builder()
+        .filter_module("tesseract", LevelFilter::Info)
+        .format_module_path(false)
+        .init();
+}
+
+pub async fn timeout_future<T: Future>(future: T, secs: u64, reason: String) -> T::Output {
+    let duration = Duration::from_secs(secs);
+    match tokio::time::timeout(duration.clone(), future).await {
+        Ok(output) => output,
+        Err(_) => panic!("Future didn't finish within {duration:?}, {reason}"),
+    }
+}
+
+async fn transfer_assets(
+    chain_a: &ParachainClient<Hyperbridge>,
+    chain_b: &ParachainClient<Hyperbridge>,
+) -> Result<(), anyhow::Error> {
+    let amt = (30 * chain_a.balance().await?) / 100;
+
+    let timeout = chain_b.timestamp().await? + Duration::from_secs(60 * 60);
+    let params = ismp_assets::TransferParams {
+        to: chain_b.account(),
+        amount: amt,
+        dest_chain: chain_b.state_machine,
+        timeout: timeout.as_secs(),
+    };
+    dbg!(amt);
+    chain_a.transfer(params).await?;
+
+    timeout_future(
+        chain_b.ismp_assets_events_stream(1),
+        60 * 4,
+        "Did not see BalanceReceived Event".to_string(),
+    )
+    .await?;
+    let amt = (30 * chain_b.balance().await?) / 100;
+    dbg!(amt);
+    let params_b = ismp_assets::TransferParams {
+        to: chain_a.account(),
+        amount: amt,
+        dest_chain: chain_a.state_machine,
+        timeout: timeout.as_secs(),
+    };
+
+    chain_b.transfer(params_b).await?;
+
+    timeout_future(
+        chain_a.ismp_assets_events_stream(1),
+        60 * 4,
+        "Did not see BalanceReceived Event".to_string(),
+    )
+    .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_parachain_parachain_messaging_and_consensus_relay() -> Result<(), anyhow::Error> {
+    setup_logging();
+
+    let (mut chain_a, mut chain_b) = setup_clients().await?;
+
+    let _consensus_handle = tokio::task::spawn({
+        let chain_a = chain_a.clone();
+        let chain_b = chain_b.clone();
+        async move { tesseract_consensus::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+    });
+
+    // Change signer for messaging process to avoid transaction priority errors
+    chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
+    chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
+
+    let _message_handle = tokio::spawn({
+        let chain_a = chain_a.clone();
+        let chain_b = chain_b.clone();
+        async move { tesseract_message::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+    });
+
+    // Make two transfers each from both chains
+    for _ in 0..2 {
+        transfer_assets(&chain_a, &chain_b).await?;
+    }
     Ok(())
 }
