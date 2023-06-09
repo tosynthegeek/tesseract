@@ -1,19 +1,20 @@
 #![cfg(test)]
 
 use codec::Encode;
-use ismp::{
-    consensus::{IntermediateState, StateCommitment, StateMachineHeight, StateMachineId},
-    host::StateMachine,
-    messaging::CreateConsensusClient,
-};
-use ismp_parachain::consensus::PARACHAIN_CONSENSUS_ID;
+use ismp::host::StateMachine;
+
+use ismp_demo::GetRequest;
 use std::{future::Future, time::Duration};
 use subxt::{
-    config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
+    config::{
+        polkadot::PolkadotExtrinsicParams,
+        substrate::{BlakeTwo256, SubstrateHeader},
+        Hasher,
+    },
     ext::sp_core::keccak_256,
     utils::{AccountId32, MultiAddress, MultiSignature, H256},
 };
-use tesseract_parachain::{ParachainClient, ParachainConfig};
+use tesseract_parachain::{parachain, ParachainClient, ParachainConfig};
 
 #[derive(Clone)]
 pub struct Hyperbridge;
@@ -59,49 +60,6 @@ async fn setup_clients(
         latest_state_machine_height: None,
     };
     let chain_b = ParachainClient::<Hyperbridge>::new(config_b).await?;
-
-    chain_a
-        .create_consensus_client(CreateConsensusClient {
-            consensus_state: vec![],
-            consensus_client_id: PARACHAIN_CONSENSUS_ID,
-            state_machine_commitments: vec![IntermediateState {
-                height: StateMachineHeight {
-                    id: StateMachineId {
-                        state_id: chain_b.state_machine.clone(),
-                        consensus_client: PARACHAIN_CONSENSUS_ID,
-                    },
-                    height: 0,
-                },
-                commitment: StateCommitment {
-                    timestamp: 0,
-                    ismp_root: None,
-                    state_root: Default::default(),
-                },
-            }],
-        })
-        .await?;
-
-    chain_b
-        .create_consensus_client(CreateConsensusClient {
-            consensus_state: vec![],
-            consensus_client_id: PARACHAIN_CONSENSUS_ID,
-            state_machine_commitments: vec![IntermediateState {
-                height: StateMachineHeight {
-                    id: StateMachineId {
-                        state_id: chain_a.state_machine.clone(),
-                        consensus_client: PARACHAIN_CONSENSUS_ID,
-                    },
-                    height: 0,
-                },
-                commitment: StateCommitment {
-                    timestamp: 0,
-                    ismp_root: None,
-                    state_root: Default::default(),
-                },
-            }],
-        })
-        .await?;
-
     Ok((chain_a, chain_b))
 }
 
@@ -127,35 +85,26 @@ async fn transfer_assets(
 ) -> Result<(), anyhow::Error> {
     let amt = (30 * chain_a.balance().await?) / 100;
 
-    let timeout = chain_b.timestamp().await? + Duration::from_secs(60 * 60);
-    let params = ismp_assets::TransferParams {
-        to: chain_b.account(),
-        amount: amt,
-        dest_chain: chain_b.state_machine,
-        timeout: timeout.as_secs(),
-    };
+    let params =
+        ismp_demo::TransferParams { to: chain_b.account(), amount: amt, timeout: 0, para_id: 2001 };
     dbg!(amt);
     chain_a.transfer(params).await?;
 
     timeout_future(
-        chain_b.ismp_assets_events_stream(1),
+        chain_b.ismp_demo_events_stream::<parachain::api::ismp_demo::events::BalanceReceived>(1),
         60 * 4,
         "Did not see BalanceReceived Event".to_string(),
     )
     .await?;
     let amt = (30 * chain_b.balance().await?) / 100;
     dbg!(amt);
-    let params_b = ismp_assets::TransferParams {
-        to: chain_a.account(),
-        amount: amt,
-        dest_chain: chain_a.state_machine,
-        timeout: timeout.as_secs(),
-    };
+    let params_b =
+        ismp_demo::TransferParams { to: chain_a.account(), amount: amt, timeout: 0, para_id: 2000 };
 
     chain_b.transfer(params_b).await?;
 
     timeout_future(
-        chain_a.ismp_assets_events_stream(1),
+        chain_a.ismp_demo_events_stream::<parachain::api::ismp_demo::events::BalanceReceived>(1),
         60 * 4,
         "Did not see BalanceReceived Event".to_string(),
     )
@@ -164,16 +113,10 @@ async fn transfer_assets(
 }
 
 #[tokio::test]
-async fn test_parachain_parachain_messaging_and_consensus_relay() -> Result<(), anyhow::Error> {
+async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error> {
     setup_logging();
 
     let (mut chain_a, mut chain_b) = setup_clients().await?;
-
-    let _consensus_handle = tokio::task::spawn({
-        let chain_a = chain_a.clone();
-        let chain_b = chain_b.clone();
-        async move { tesseract_consensus::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
-    });
 
     // Change signer for messaging process to avoid transaction priority errors
     chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
@@ -185,9 +128,28 @@ async fn test_parachain_parachain_messaging_and_consensus_relay() -> Result<(), 
         async move { tesseract_message::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
     });
 
-    // Make two transfers each from both chains
-    for _ in 0..2 {
-        transfer_assets(&chain_a, &chain_b).await?;
-    }
+    // Make transfers each from both chains
+    transfer_assets(&chain_a, &chain_b).await?;
+
+    // Send a Get request next
+    chain_a
+        .get_request(GetRequest {
+            para_id: 2001,
+            height: chain_b.latest_state_machine_height() as u32,
+            timeout: 0,
+            keys: vec![hex::decode(
+                "c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80".to_string(),
+            )
+            .unwrap()],
+        })
+        .await?;
+
+    timeout_future(
+        chain_a.ismp_demo_events_stream::<parachain::api::ismp_demo::events::GetResponse>(1),
+        60 * 4,
+        "Did not see Get Response Event".to_string(),
+    )
+    .await?;
+
     Ok(())
 }

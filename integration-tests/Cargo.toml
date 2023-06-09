@@ -13,10 +13,11 @@ subxt = { git = "https://github.com/polytope-labs/subxt", branch = "master" }
 codec = { package = "parity-scale-codec", version = "3.2.2", features = ["derive"] }
 env_logger = "0.10.0"
 log = "0.4.17"
+hex = "0.4.3"
 
-ismp = { git = "ssh://git@github.com/polytope-labs/ismp-rs.git", branch = "main" }
-ismp-parachain = { git = "ssh://git@github.com/polytope-labs/substrate-ismp.git", branch = "main" }
-ismp-assets = { git = "ssh://git@github.com/polytope-labs/substrate-ismp.git", branch = "main" }
+ismp = { git = "https://github.com/polytope-labs/ismp-rs", branch = "main" }
+ismp-parachain = { git = "https://github.com/polytope-labs/substrate-ismp", branch = "main" }
+ismp-demo = { git = "https://github.com/polytope-labs/substrate-ismp", branch = "main" }
 
 sp-io = "22.0.0"
 sp-keyring = "23.0.0"
