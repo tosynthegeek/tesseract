@@ -153,3 +153,24 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_messaging_relay() -> Result<(), anyhow::Error> {
+    setup_logging();
+
+    let (mut chain_a, mut chain_b) = setup_clients().await?;
+
+    // Change signer for messaging process to avoid transaction priority errors
+    chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
+    chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
+
+    let message_handle = tokio::spawn({
+        let chain_a = chain_a.clone();
+        let chain_b = chain_b.clone();
+        async move { tesseract_message::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+    });
+
+    message_handle.await.unwrap();
+
+    Ok(())
+}
