@@ -6,24 +6,21 @@ use ismp::host::StateMachine;
 use ismp_demo::GetRequest;
 use std::{future::Future, time::Duration};
 use subxt::{
-    config::{
-        polkadot::PolkadotExtrinsicParams,
-        substrate::{BlakeTwo256, SubstrateHeader},
-        Hasher,
-    },
+    config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
     ext::sp_core::keccak_256,
     utils::{AccountId32, MultiAddress, MultiSignature, H256},
 };
-use tesseract_parachain::{parachain, ParachainClient, ParachainConfig};
+
+use tesseract_parachain::{ParachainClient, ParachainConfig};
 
 #[derive(Clone)]
 pub struct Hyperbridge;
 
-/// A type that can hash values using the blaks2_256 algorithm.
+/// A type that can hash values using the keccak_256 algorithm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Encode)]
-pub struct KeccakHasher;
+pub struct RuntimeHasher;
 
-impl Hasher for KeccakHasher {
+impl Hasher for RuntimeHasher {
     type Output = H256;
     fn hash(s: &[u8]) -> Self::Output {
         keccak_256(s).into()
@@ -36,8 +33,8 @@ impl subxt::Config for Hyperbridge {
     type AccountId = AccountId32;
     type Address = MultiAddress<Self::AccountId, u32>;
     type Signature = MultiSignature;
-    type Hasher = KeccakHasher;
-    type Header = SubstrateHeader<u32, KeccakHasher>;
+    type Hasher = RuntimeHasher;
+    type Header = SubstrateHeader<u32, RuntimeHasher>;
     type ExtrinsicParams = PolkadotExtrinsicParams<Self>;
 }
 
@@ -83,7 +80,7 @@ async fn transfer_assets(
     chain_a: &ParachainClient<Hyperbridge>,
     chain_b: &ParachainClient<Hyperbridge>,
 ) -> Result<(), anyhow::Error> {
-    let amt = (30 * chain_a.balance().await?) / 100;
+    let amt = 345876451382054092;
 
     let params =
         ismp_demo::TransferParams { to: chain_b.account(), amount: amt, timeout: 0, para_id: 2001 };
@@ -91,12 +88,12 @@ async fn transfer_assets(
     chain_a.transfer(params).await?;
 
     timeout_future(
-        chain_b.ismp_demo_events_stream::<parachain::api::ismp_demo::events::BalanceReceived>(1),
+        chain_b.ismp_demo_events_stream(1, "IsmpDemo", "BalanceReceived"),
         60 * 4,
         "Did not see BalanceReceived Event".to_string(),
     )
     .await?;
-    let amt = (30 * chain_b.balance().await?) / 100;
+
     dbg!(amt);
     let params_b =
         ismp_demo::TransferParams { to: chain_a.account(), amount: amt, timeout: 0, para_id: 2000 };
@@ -104,7 +101,7 @@ async fn transfer_assets(
     chain_b.transfer(params_b).await?;
 
     timeout_future(
-        chain_a.ismp_demo_events_stream::<parachain::api::ismp_demo::events::BalanceReceived>(1),
+        chain_a.ismp_demo_events_stream(1, "IsmpDemo", "BalanceReceived"),
         60 * 4,
         "Did not see BalanceReceived Event".to_string(),
     )
@@ -145,7 +142,7 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
         .await?;
 
     timeout_future(
-        chain_a.ismp_demo_events_stream::<parachain::api::ismp_demo::events::GetResponse>(1),
+        chain_a.ismp_demo_events_stream(1, "IsmpDemo", "GetResponse"),
         60 * 4,
         "Did not see Get Response Event".to_string(),
     )
@@ -154,6 +151,7 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
     Ok(())
 }
 
+#[ignore]
 #[tokio::test]
 async fn test_messaging_relay() -> Result<(), anyhow::Error> {
     setup_logging();

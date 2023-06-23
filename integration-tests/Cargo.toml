@@ -8,8 +8,7 @@ authors = ["Polytope Labs <hello@polytope.technology>"]
 [dependencies]
 anyhow = "1.0.70"
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
-#subxt = { version = "0.28.0", features = [] }
-subxt = { git = "https://github.com/polytope-labs/subxt", branch = "master" }
+subxt = { version = "0.29.0", features = ["substrate-compat"] }
 codec = { package = "parity-scale-codec", version = "3.2.2", features = ["derive"] }
 env_logger = "0.10.0"
 log = "0.4.17"
@@ -20,7 +19,7 @@ ismp-parachain = { git = "https://github.com/polytope-labs/substrate-ismp", bran
 ismp-demo = { git = "https://github.com/polytope-labs/substrate-ismp", branch = "main" }
 
 sp-io = "22.0.0"
-sp-keyring = "23.0.0"
+sp-keyring = "24.0.0"
 
 tesseract-parachain = { path = "../parachain", features = ["testing"] }
 tesseract-consensus = { path = "../consensus" }
