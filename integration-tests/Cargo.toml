@@ -23,5 +23,5 @@ sp-keyring = "24.0.0"
 
 tesseract-parachain = { path = "../parachain", features = ["testing"] }
 tesseract-consensus = { path = "../consensus" }
-tesseract-message = { path = "../messaging" }
+tesseract-messaging = { path = "../messaging" }
 tesseract-primitives = { path = "../primitives" }

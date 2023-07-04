@@ -122,7 +122,7 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
     let _message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
         let chain_b = chain_b.clone();
-        async move { tesseract_message::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
     });
 
     // Make transfers each from both chains
@@ -165,7 +165,7 @@ async fn test_messaging_relay() -> Result<(), anyhow::Error> {
     let message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
         let chain_b = chain_b.clone();
-        async move { tesseract_message::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
     });
 
     message_handle.await.unwrap();
