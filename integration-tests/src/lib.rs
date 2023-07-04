@@ -4,6 +4,7 @@ use codec::Encode;
 use ismp::host::StateMachine;
 
 use ismp_demo::GetRequest;
+use ismp_parachain::consensus::HashAlgorithm;
 use std::{future::Future, time::Duration};
 use subxt::{
     config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
@@ -42,6 +43,7 @@ async fn setup_clients(
 ) -> Result<(ParachainClient<Hyperbridge>, ParachainClient<Hyperbridge>), anyhow::Error> {
     let config_a = ParachainConfig {
         state_machine: StateMachine::Kusama(2000),
+        hashing: HashAlgorithm::Blake2,
         relay_chain: "ws://localhost:9944".to_string(),
         parachain: "ws://localhost:9988".to_string(),
         signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
@@ -51,6 +53,7 @@ async fn setup_clients(
 
     let config_b = ParachainConfig {
         state_machine: StateMachine::Kusama(2001),
+        hashing: HashAlgorithm::Blake2,
         relay_chain: "ws://localhost:9944".to_string(),
         parachain: "ws://localhost:9188".to_string(),
         signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
