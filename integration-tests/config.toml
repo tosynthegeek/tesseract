@@ -20,3 +20,6 @@ signer = "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a"
 [chain_b.state_machine]
 Kusama = 2001
 
+[relayer]
+messages = ["PostRequest", "PostResponse", "GetResponse"]
+module_filter = []

@@ -5,6 +5,7 @@ use ismp::host::StateMachine;
 
 use ismp_demo::GetRequest;
 use ismp_parachain::consensus::HashAlgorithm;
+use sp_io::hashing::blake2_256;
 use std::{future::Future, time::Duration};
 use subxt::{
     config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
@@ -24,7 +25,7 @@ pub struct RuntimeHasher;
 impl Hasher for RuntimeHasher {
     type Output = H256;
     fn hash(s: &[u8]) -> Self::Output {
-        keccak_256(s).into()
+        blake2_256(s).into()
     }
 }
 
@@ -125,7 +126,7 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
     let _message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
         let chain_b = chain_b.clone();
-        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone(), None).await.unwrap() }
     });
 
     // Make transfers each from both chains
@@ -168,7 +169,7 @@ async fn test_messaging_relay() -> Result<(), anyhow::Error> {
     let message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
         let chain_b = chain_b.clone();
-        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone()).await.unwrap() }
+        async move { tesseract_messaging::relay(chain_a.clone(), chain_b.clone(), None).await.unwrap() }
     });
 
     message_handle.await.unwrap();
