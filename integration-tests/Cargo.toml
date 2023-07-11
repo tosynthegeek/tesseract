@@ -21,7 +21,7 @@ ismp-demo = { git = "https://github.com/polytope-labs/substrate-ismp", branch = 
 sp-io = "22.0.0"
 sp-keyring = "24.0.0"
 
-tesseract-parachain = { path = "../parachain", features = ["testing"] }
-tesseract-consensus = { path = "../consensus" }
+tesseract-parachain = { path = "../substrate/parachain" }
+substrate-common = { path = "../substrate/common", features = ["testing"] }
 tesseract-messaging = { path = "../messaging" }
 tesseract-primitives = { path = "../primitives" }

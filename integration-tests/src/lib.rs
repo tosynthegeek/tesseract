@@ -7,13 +7,15 @@ use ismp_demo::GetRequest;
 use ismp_parachain::consensus::HashAlgorithm;
 use sp_io::hashing::blake2_256;
 use std::{future::Future, time::Duration};
+use substrate_common::{SubstrateClient, SubstrateConfig};
 use subxt::{
     config::{polkadot::PolkadotExtrinsicParams, substrate::SubstrateHeader, Hasher},
-    ext::sp_core::keccak_256,
     utils::{AccountId32, MultiAddress, MultiSignature, H256},
 };
 
-use tesseract_parachain::{ParachainClient, ParachainConfig};
+use tesseract_parachain::{ParachainConfig, ParachainHost};
+
+type ParachainClient<T> = SubstrateClient<ParachainHost<T>, T>;
 
 #[derive(Clone)]
 pub struct Hyperbridge;
@@ -43,24 +45,35 @@ impl subxt::Config for Hyperbridge {
 async fn setup_clients(
 ) -> Result<(ParachainClient<Hyperbridge>, ParachainClient<Hyperbridge>), anyhow::Error> {
     let config_a = ParachainConfig {
-        state_machine: StateMachine::Kusama(2000),
-        hashing: HashAlgorithm::Blake2,
         relay_chain: "ws://localhost:9944".to_string(),
-        parachain: "ws://localhost:9988".to_string(),
-        signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
-        latest_state_machine_height: None,
+
+        substrate: SubstrateConfig {
+            state_machine: StateMachine::Kusama(2000),
+            hashing: HashAlgorithm::Blake2,
+            consensus_client: "PARA".to_string(),
+            ws_url: "ws://localhost:9988".to_string(),
+            signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a"
+                .to_string(),
+            latest_state_machine_height: None,
+        },
     };
-    let chain_a = ParachainClient::<Hyperbridge>::new(config_a).await?;
+    let host_a = ParachainHost::<Hyperbridge>::new(&config_a).await?;
+    let chain_a = SubstrateClient::new(host_a, config_a.substrate).await?;
 
     let config_b = ParachainConfig {
-        state_machine: StateMachine::Kusama(2001),
-        hashing: HashAlgorithm::Blake2,
         relay_chain: "ws://localhost:9944".to_string(),
-        parachain: "ws://localhost:9188".to_string(),
-        signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a".to_string(),
-        latest_state_machine_height: None,
+        substrate: SubstrateConfig {
+            state_machine: StateMachine::Kusama(2001),
+            hashing: HashAlgorithm::Blake2,
+            consensus_client: "PARA".to_string(),
+            ws_url: "ws://localhost:9188".to_string(),
+            signer: "0xe5be9a5092b81bca64be81d212e7f2f9eba183bb7a90954f7b76361f6edb5c0a"
+                .to_string(),
+            latest_state_machine_height: None,
+        },
     };
-    let chain_b = ParachainClient::<Hyperbridge>::new(config_b).await?;
+    let host_b = ParachainHost::<Hyperbridge>::new(&config_b).await?;
+    let chain_b = SubstrateClient::new(host_b, config_b.substrate).await?;
     Ok((chain_a, chain_b))
 }
 
@@ -117,11 +130,11 @@ async fn transfer_assets(
 async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error> {
     setup_logging();
 
-    let (mut chain_a, mut chain_b) = setup_clients().await?;
+    let (chain_a, chain_b) = setup_clients().await?;
 
     // Change signer for messaging process to avoid transaction priority errors
-    chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
-    chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
+    // chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
+    // chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
 
     let _message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
@@ -160,11 +173,11 @@ async fn test_parachain_parachain_messaging_relay() -> Result<(), anyhow::Error>
 async fn test_messaging_relay() -> Result<(), anyhow::Error> {
     setup_logging();
 
-    let (mut chain_a, mut chain_b) = setup_clients().await?;
+    let (chain_a, chain_b) = setup_clients().await?;
 
     // Change signer for messaging process to avoid transaction priority errors
-    chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
-    chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
+    // chain_a.signer = sp_keyring::AccountKeyring::Bob.pair();
+    // chain_b.signer = sp_keyring::AccountKeyring::Bob.pair();
 
     let message_handle = tokio::spawn({
         let chain_a = chain_a.clone();
